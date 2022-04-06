@@ -1,34 +1,105 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+- getStaticProps (Static Generation)
+  Fetch data at **build time**
 
-## Getting Started
+- getStaticPaths (Static Generation)
+  Specify dynamic routes to pre-render pages based on data
 
-First, run the development server:
+- getServerSideProps (Server-side Rendering)
+  Fetch data on **each request**
 
-```bash
-npm run dev
-# or
-yarn dev
+* Static Generation : 미리 모든 파일들을 정적 페이지로 만들어서 파일 단위로 serving 하는 방식
+* Server-side Rendering : 해당 페이지를 서버에서 만들어서 serving (요청을 받았을 때마다 data fetching)
+
+```js
+export async function getStaticPaths() {
+  const client = sanityClient({
+    dataset: "production",
+    projectId: "klr1kbxl",
+    useCdn: process.env.NODE_ENV === "production",
+  });
+
+  const posts = await client.fetch(`*[_type == 'post']{
+  title, 
+  subtitle, 
+  createdAt, 
+  'content': content[]{
+  	...,
+  	...select(_type == 'imageGallery' => {'images': images[]{..., 'url': asset -> url}})
+	},
+  'slug': slug.current,
+  'thumbnail': {
+    'alt': thumbnail.alt,
+    'imageUrl': thumbnail.asset -> url
+  },
+  'author': author -> {
+    name,
+    role,
+    'image': image.asset -> url
+  },
+  'tag': tag -> {
+    title,
+    'slug': slug.current
+  }
+}`);
+
+  const paths = posts.map((post) => ({
+    params: {
+      slug: post.slug,
+    },
+  }));
+
+  return {
+    paths,
+    fallback: false,
+  };
+}
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+fallback : true 일때는 path에 없는 경우 일때는 404 에러페이지 이동 x
+false 일때는 404 에러페이지 이동
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+### next.confing.js
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
+```js
+const nextConfig = {
+  reactStrictMode: true,
+  trailingSlash: false,
+  images: {
+    domains: ["cdn.sanity.io"],
+  },
+  env: {
+    SANITY_PROJECT_ID: "klr1kbxl",
+  },
+};
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+module.exports = nextConfig;
+```
 
-## Learn More
+env를 등록하여 환경변수 사용이 가능하다.
 
-To learn more about Next.js, take a look at the following resources:
+(사용)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```js
+    projectId: process.env.SANITY_PROJECT_ID,
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+```
 
-## Deploy on Vercel
+### 배포
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. SSR 방식
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+2. Static site generatorn 방식
+
+```
+npm run build
+```
+
+Static site generatorn 방식
+package.json
+
+```
+"build": "next build && next export"
+
+```
+
+npx serve out
